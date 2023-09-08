@@ -14,6 +14,8 @@
 
 **Activation**
 
+> NOTE: Not needed in VSCodium since version 1.82
+
 Enable the extension in your `argv.json`
 
 
