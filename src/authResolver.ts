@@ -9,6 +9,26 @@ export function getRemoteAuthority(distro: string) {
     return `${REMOTE_WSL_AUTHORITY}+${distro}`;
 }
 
+class Tunnel implements vscode.Tunnel {
+    private _onDidDisposeEmitter = new vscode.EventEmitter<void>();
+
+    readonly onDidDispose = this._onDidDisposeEmitter.event;
+
+    constructor(
+        readonly remoteAddress: { port: number; host: string },
+        readonly localAddress: { port: number; host: string }
+    ) {
+        // If ipv6 localhost 0:0:0:0:0:0:0:1 or [::1] replace with localhost
+        if (localAddress.host !== 'localhost' && localAddress.host !== '127.0.0.1') {
+            localAddress.host = 'localhost';
+        }
+    }
+
+    dispose() {
+        this._onDidDisposeEmitter.fire();
+    }
+}
+
 export class RemoteWSLResolver implements vscode.RemoteAuthorityResolver, vscode.Disposable {
 
     private labelFormatterDisposable: vscode.Disposable | undefined;
@@ -78,6 +98,16 @@ export class RemoteWSLResolver implements vscode.RemoteAuthorityResolver, vscode
                 }
             }
         });
+    }
+
+    async tunnelFactory(tunnelOptions: vscode.TunnelOptions) {
+        return new Tunnel(
+            tunnelOptions.remoteAddress,
+            {
+                host: tunnelOptions.remoteAddress.host,
+                port: tunnelOptions.localAddressPort ?? tunnelOptions.remoteAddress.port
+            }
+        );
     }
 
     dispose() {
