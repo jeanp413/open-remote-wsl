@@ -149,7 +149,7 @@
 					"group": "remote_20_wsl_1general@1"
 				},
 				{
-					"command": "openremotewsl.connectInNewWindow",
+					"command": "openremotewsl.connectUsingDistro",
 					"when": "(isWindows && !isWeb)",
 					"group": "remote_20_wsl_1general@2"
 				},
