@@ -182,6 +182,14 @@ case $PLATFORM in
     Linux)
         SERVER_OS="linux"
         ;;
+    "")
+        if ! command -v uname; then
+            echo "Error 'uname' command not found, could not get platform/arch data."
+        else
+            echo "Error uname -s yields empty result"
+        fi
+        print_install_results_and_exit 1
+        ;;
     *)
         echo "Error platform not supported: $PLATFORM"
         print_install_results_and_exit 1
@@ -228,10 +236,11 @@ SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${'
 
 # Check if server script is already installed
 if [[ ! -f $SERVER_SCRIPT ]]; then
-    if [[ "$SERVER_OS" = "dragonfly" ]] || [[ "$SERVER_OS" = "freebsd" ]]; then
-        echo "Error "$SERVER_OS" needs manual installation of remote extension host"
-        print_install_results_and_exit 1
-    fi
+    # not relevant for WSL as it only supports ... Linux, see https://github.com/microsoft/WSL/discussions/6540
+    #if [[ "$SERVER_OS" = "dragonfly" ]] || [[ "$SERVER_OS" = "freebsd" ]]; then
+    #    echo "Error "$SERVER_OS" needs manual installation of remote extension host"
+    #    print_install_results_and_exit 1
+    #fi
 
     pushd $SERVER_DIR > /dev/null
 
@@ -246,12 +255,14 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
 
     if (( $? > 0 )); then
         echo "Error downloading server from $SERVER_DOWNLOAD_URL"
+        rm -rf vscode-server.tar.gz
         print_install_results_and_exit 1
     fi
 
     tar -xf vscode-server.tar.gz --strip-components 1
     if (( $? > 0 )); then
         echo "Error while extracting server contents"
+        rm -rf vscode-server.tar.gz
         print_install_results_and_exit 1
     fi
 
