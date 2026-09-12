@@ -1,6 +1,7 @@
 import * as cp from 'child_process';
 import Log from '../common/logger';
 import { EventEmitter } from '../common/event';
+import { validateDistroName } from '../common/shellEscape';
 
 const wslBinary = 'wsl.exe';
 
@@ -29,11 +30,12 @@ export class WSLManager {
             throw new Error(`Command wsl listDistros exited with code ${exitCode}`);
         }
 
-        const regex = /(?<default>\*|\s)\s+(?<name>[\w\.-]+)\s+(?<state>[\w]+)\s+(?<version>\d)/;
+        const regex = /(?<default>\*|\s)\s+(?<name>[\w.-]+)\s+(?<state>[\w]+)\s+(?<version>\d)/;
         const distros: WSLDistro[] = [];
         for (const line of stdout.split(/\r?\n/)) {
             const matches = line.match(regex);
             if (matches && matches.groups) {
+                try { validateDistroName(matches.groups.name); } catch { continue; }
                 distros.push({
                     isDefault: matches.groups.default === '*',
                     name: matches.groups.name,
@@ -59,11 +61,12 @@ export class WSLManager {
         const idx = lines.findIndex(l => /\s*NAME\s+FRIENDLY NAME\s*/.test(l));
         lines = lines.slice(idx + 1);
 
-        const regex = /(?<name>[\w\.-]+)\s+(?<friendlyName>\w.+\w)/;
+        const regex = /(?<name>[\w.-]+)\s+(?<friendlyName>\w.+\w)/;
         const distros: WSLOnlineDistro[] = [];
         for (const line of lines) {
             const matches = line.match(regex);
             if (matches && matches.groups) {
+                try { validateDistroName(matches.groups.name); } catch { continue; }
                 distros.push({
                     name: matches.groups.name,
                     friendlyName: matches.groups.friendlyName,
@@ -91,6 +94,16 @@ export class WSLManager {
         if (exitCode) {
             this.logger.trace(`Command wsl deleteDistro exited with code ${exitCode}`, stdout + '\n\n' + stderr);
             throw new Error(`Command wsl deleteDistro exited with code ${exitCode}`);
+        }
+    }
+
+    async installDistro(distroName: string): Promise<void> {
+        const resp = this._runWSLCommand(['--install', '-d', distroName], 'utf16le');
+        const { exitCode } = await resp.exitPromise;
+        const { stdout, stderr } = resp;
+        if (exitCode) {
+            this.logger.trace(`Command wsl installDistro exited with code ${exitCode}`, stdout + '\n\n' + stderr);
+            throw new Error(`Failed to install WSL distro "${distroName}": exit code ${exitCode}`);
         }
     }
 

@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { getRemoteAuthority } from './authResolver';
 import { WSLDistro, WSLManager, WSLOnlineDistro } from './wsl/wslManager';
-import wslTerminal from './wsl/wslTerminal';
 
 async function showDistrosPicker(wslManager: WSLManager, placeHolder: string): Promise<WSLDistro | undefined> {
     const pickItemsPromise = wslManager.listDistros()
@@ -58,7 +57,7 @@ export async function promptInstallNewWSLDistro(wslManager: WSLManager) {
         return;
     }
 
-    wslTerminal.runCommand(`wsl.exe --install -d ${distroName}`);
+    await wslManager.installDistro(distroName);
 }
 
 export function openRemoteWSLWindow(distro: string, reuseWindow: boolean) {

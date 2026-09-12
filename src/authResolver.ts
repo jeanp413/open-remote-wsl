@@ -40,7 +40,9 @@ export class RemoteWSLResolver implements vscode.RemoteAuthorityResolver, vscode
     }
 
     resolve(authority: string, context: vscode.RemoteAuthorityResolverContext): Thenable<vscode.ResolverResult> {
-        const [type, distroName] = authority.split('+');
+        const plusIdx = authority.indexOf('+');
+        const type    = plusIdx >= 0 ? authority.substring(0, plusIdx) : authority;
+        const distroName = plusIdx >= 0 ? authority.substring(plusIdx + 1) : '';
         if (type !== REMOTE_WSL_AUTHORITY) {
             throw new Error(`Invalid authority type for WSL resolver: ${type}`);
         }
