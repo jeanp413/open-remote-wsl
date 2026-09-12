@@ -279,13 +279,14 @@
 		}
 	},
 	"scripts": {
-		"postinstall": "yarn update-dts",
+		"postinstall": "npm run update-dts",
 		"vscode:prepublish": "webpack --mode production",
 		"webpack": "webpack --mode development",
 		"compile": "tsc -b",
 		"watch": "tsc -b -w",
-		"package": "npx vsce package --yarn",
-		"update-dts": "npx vscode-dts dev && npx vscode-dts main"
+		"package": "npx @vscode/vsce package",
+		"update-dts": "npx vscode-dts dev && npx vscode-dts main",
+		"test": "npx tsc --outDir out-test src/common/shellEscape.ts --module commonjs --target es2019 --noEmit false && node test-validators.js && rmdir /s /q out-test"
 	},
 	"devDependencies": {
 		"@types/node": "^16.17.1",

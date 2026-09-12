@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import { validateSimpleIdentifier, validateCommitHash, validateQuality } from './common/shellEscape';
 
 let vscodeProductJson: any;
 async function getVSCodeProductJson() {
@@ -24,6 +25,11 @@ export interface IServerConfig {
 
 export async function getVSCodeServerConfig(): Promise<IServerConfig> {
     const productJson = await getVSCodeProductJson();
+
+    validateCommitHash(productJson.commit);
+    validateQuality(productJson.quality);
+    validateSimpleIdentifier(productJson.serverApplicationName, 'serverApplicationName');
+    validateSimpleIdentifier(productJson.serverDataFolderName, 'serverDataFolderName');
 
     return {
         version: vscode.version.replace('-insider',''),

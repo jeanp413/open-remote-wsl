@@ -2,6 +2,7 @@ import * as crypto from 'crypto';
 import Log from './common/logger';
 import { getVSCodeServerConfig } from './serverConfig';
 import { WSLManager } from './wsl/wslManager';
+import { shellEscapeSingleQuote, validateHttpsUrl, validateExtensionId, validateEnvVarName } from './common/shellEscape';
 
 export interface ServerInstallOptions {
     id: string;
@@ -37,7 +38,7 @@ export class ServerInstallError extends Error {
 const DEFAULT_DOWNLOAD_URL_TEMPLATE = 'https://github.com/VSCodium/vscodium/releases/download/${version}.${release}/vscodium-reh-${os}-${arch}-${version}.${release}.tar.gz';
 
 export async function installCodeServer(wslManager: WSLManager, distroName: string, serverDownloadUrlTemplate: string | undefined, extensionIds: string[], envVariables: string[], logger: Log): Promise<ServerInstallResult> {
-    const scriptId = crypto.randomBytes(12).toString('hex');
+    const scriptId = crypto.randomBytes(32).toString('hex');
 
     const vscodeServerConfig = await getVSCodeServerConfig();
     const installOptions: ServerInstallOptions = {
@@ -122,7 +123,11 @@ function parseServerInstallOutput(str: string, scriptId: string): { [k: string]:
     const resultMap: { [k: string]: string } = {};
     const resultArr = installResult.split(/\r?\n/);
     for (const line of resultArr) {
-        const [key, value] = line.split('==');
+        const eqIdx = line.indexOf('==');
+        if (eqIdx < 0) { continue; }
+        const key   = line.substring(0, eqIdx);
+        if (!key) { continue; }
+        const value = line.substring(eqIdx + 2, line.lastIndexOf('=='));
         resultMap[key] = value;
     }
 
@@ -130,7 +135,10 @@ function parseServerInstallOutput(str: string, scriptId: string): { [k: string]:
 }
 
 function generateBashInstallScript({ id, quality, version, commit, release, extensionIds, envVariables, serverApplicationName, serverDataFolderName, serverDownloadUrlTemplate }: ServerInstallOptions) {
-    const extensions = extensionIds.map(id => '--install-extension ' + id).join(' ');
+    validateHttpsUrl(serverDownloadUrlTemplate, 'serverDownloadUrlTemplate');
+    const safeUrlTemplate = shellEscapeSingleQuote(serverDownloadUrlTemplate);
+    for (const extId of extensionIds) { validateExtensionId(extId); }
+    const extensions = extensionIds.map(extId => `--install-extension ${shellEscapeSingleQuote(extId)}`).join(' ');
     return `
 # Server installation script
 
@@ -171,7 +179,7 @@ print_install_results_and_exit() {
     echo "arch==$ARCH=="
     echo "platform==$PLATFORM=="
     echo "tmpDir==$TMP_DIR=="
-    ${envVariables.map(envVar => `echo "${envVar}==$${envVar}=="`).join('\n')}
+    ${envVariables.map(envVar => { validateEnvVarName(envVar); return `echo "${envVar}==$${envVar}=="`;}).join('\n')}
     echo "${id}: end"
     exit 0
 }
@@ -224,7 +232,7 @@ if [[ ! -d $SERVER_DIR ]]; then
     fi
 fi
 
-SERVER_DOWNLOAD_URL="$(echo "${serverDownloadUrlTemplate.replace(/\$\{/g, '\\${')}" | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/$SERVER_OS/g" | sed "s/\\\${arch}/$SERVER_ARCH/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
+SERVER_DOWNLOAD_URL="$(echo ${safeUrlTemplate} | sed "s/\\\${quality}/$DISTRO_QUALITY/g" | sed "s/\\\${version}/$DISTRO_VERSION/g" | sed "s/\\\${commit}/$DISTRO_COMMIT/g" | sed "s/\\\${os}/$SERVER_OS/g" | sed "s/\\\${arch}/$SERVER_ARCH/g" | sed "s/\\\${release}/$DISTRO_VSCODIUM_RELEASE/g")"
 
 # Check if server script is already installed
 if [[ ! -f $SERVER_SCRIPT ]]; then
@@ -234,6 +242,11 @@ if [[ ! -f $SERVER_SCRIPT ]]; then
     fi
 
     pushd $SERVER_DIR > /dev/null
+
+    if [[ "$SERVER_DOWNLOAD_URL" != https://* ]]; then
+        echo "Error: SERVER_DOWNLOAD_URL must use https://"
+        print_install_results_and_exit 1
+    fi
 
     if [[ ! -z $(which wget) ]]; then
         wget --tries=3 --timeout=10 --continue --no-verbose -O vscode-server.tar.gz $SERVER_DOWNLOAD_URL
@@ -283,8 +296,7 @@ if [[ -z $SERVER_RUNNING_PROCESS ]]; then
         rm $SERVER_TOKENFILE
     fi
 
-    touch $SERVER_TOKENFILE
-    chmod 600 $SERVER_TOKENFILE
+    install -m 600 /dev/null "$SERVER_TOKENFILE"
     SERVER_CONNECTION_TOKEN="${crypto.randomUUID()}"
     echo $SERVER_CONNECTION_TOKEN > $SERVER_TOKENFILE
 
@@ -330,7 +342,7 @@ if [[ -z $SERVER_RUNNING_PROCESS ]]; then
     echo "arch==$ARCH=="
     echo "platform==$PLATFORM=="
     echo "tmpDir==$TMP_DIR=="
-    ${envVariables.map(envVar => `echo "${envVar}==$${envVar}=="`).join('\n')}
+    ${envVariables.map(envVar => { validateEnvVarName(envVar); return `echo "${envVar}==$${envVar}=="`;}).join('\n')}
     echo "${id}: end"
 
     echo "${id}: Server installation script done"
