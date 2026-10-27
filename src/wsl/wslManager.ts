@@ -1,6 +1,7 @@
 import * as cp from 'child_process';
 import Log from '../common/logger';
 import { EventEmitter } from '../common/event';
+import { runDetachedUntilOutput } from '../common/detachedProcess';
 
 const wslBinary = 'wsl.exe';
 
@@ -96,6 +97,12 @@ export class WSLManager {
 
     async exec(cmd: string, args: string[], distro: string) {
         return this._runWSLCommand(['--distribution', distro, '--', cmd, ...args], 'utf8');
+    }
+
+    async execDetached(cmd: string, args: string[], distro: string, marker: string) {
+        const wslArgs = ['--distribution', distro, '--', cmd, ...args];
+        this.logger.trace(`Running detached WSL command: ${wslBinary} ${wslArgs.join(' ')}`);
+        return runDetachedUntilOutput(wslBinary, wslArgs, marker);
     }
 
     private _runWSLCommand(args: string[], encoding: 'utf8' | 'utf16le') {

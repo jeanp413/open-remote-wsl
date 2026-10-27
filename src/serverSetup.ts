@@ -57,19 +57,10 @@ export async function installCodeServer(wslManager: WSLManager, distroName: stri
 
     // Fish shell does not support heredoc so let's workaround it using -c option,
     // also replace single quotes (') within the script with ('\'') as there's no quoting within single quotes, see https://unix.stackexchange.com/a/24676
-    const resp = await wslManager.exec('bash', ['-c', `'${installServerScript.replace(/'/g, `'\\''`)}'`], distroName);
-
-    const endScriptRegex = new RegExp(`${scriptId}: Server installation script done`, 'm');
-    const commandOutput = await Promise.race([
-        resp.exitPromise.then(result => ({ stdout: resp.stdout, stderr: resp.stderr, exitCode: result.exitCode })),
-        new Promise<{ stdout: string; stderr: string; exitCode: number }>((resolve) => {
-            resp.onStdoutData(buffer => {
-                if (endScriptRegex.test(buffer.toString('utf8'))) {
-                    resolve({ stdout: resp.stdout, stderr: resp.stderr, exitCode: 0 });
-                }
-            });
-        })
-    ]);
+    const commandOutput = await wslManager.execDetached(
+        'bash', ['-c', `'${installServerScript.replace(/'/g, `'\\''`)}'`], distroName,
+        `${scriptId}: end`
+    );
 
     if (commandOutput.exitCode) {
         logger.trace('Server install command stderr:', commandOutput.stderr);
@@ -78,7 +69,9 @@ export async function installCodeServer(wslManager: WSLManager, distroName: stri
 
     const resultMap = parseServerInstallOutput(commandOutput.stdout, scriptId);
     if (!resultMap) {
-        throw new ServerInstallError(`Failed parsing install script output`);
+        logger.trace('Server install command exit code:', String(commandOutput.exitCode));
+        logger.trace('Server install command stderr:', commandOutput.stderr);
+        throw new ServerInstallError(`Failed parsing install script output (launcher exit code: ${commandOutput.exitCode})`);
     }
 
     const exitCode = parseInt(resultMap.exitCode, 10);
